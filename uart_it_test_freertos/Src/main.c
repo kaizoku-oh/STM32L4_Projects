@@ -20,7 +20,6 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -34,7 +33,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define RX_BUFFER_SIZE        32
+#define RX_BUFFER_SIZE    32
+#define QUEUE_SIZE        32
+#define RX_ONE_BYTE       1
+#define START_CMD_SIZE    6
+#define STOP_CMD_SIZE     5
 
 #define START_CMD         "start\n"
 #define STOP_CMD          "stop\n"
@@ -56,7 +59,6 @@ uint8_t aRxBuffer[RX_BUFFER_SIZE];
 uint8_t byte;
 volatile uint8_t index;
 uint8_t size_of_last_data = 0;
-QueueHandle_t xQueue;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -121,25 +123,16 @@ int main(void)
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  xQueue = xQueueCreate(QUEUE_SIZE, sizeof(uint8_t));
-  if (xQueue == NULL)
-  {
-    Error_Handler();
-  }
-
+  /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
-
-  /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+  xTaskCreate(vTask1, "Task 1", 128, NULL, osPriorityHigh, NULL);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
-  osKernelStart();
+  vTaskStartScheduler();
   
   /* We should never get here as control is now taken by the scheduler */
 
@@ -282,33 +275,25 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
       memset(aRxBuffer, 0, RX_BUFFER_SIZE);
       index = 0;
     }
-    index++;
+    else
+    {
+      index++;
+    }
     HAL_UART_Receive_IT(&huart2, &byte, 1);
   }
 }
-/* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
-/**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used 
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
+static void vTask1(void *pvParameters)
 {
-    
-    
-    
+  const TickType_t xDelay100ms = pdMS_TO_TICKS(100);
 
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    vPrintString("vTask1 is running\r\n");
+    vTaskDelay(xDelay100ms);
   }
-  /* USER CODE END 5 */ 
 }
+/* USER CODE END 4 */
 
 /**
   * @brief  This function is executed in case of error occurrence.

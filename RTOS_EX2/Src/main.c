@@ -1,7 +1,7 @@
 #include "main.h"
 
 #define RX_BUFFER_SIZE    32
-#define QUEUE_SIZE        1
+#define QUEUE_SIZE        RX_BUFFER_SIZE
 #define RX_ONE_BYTE       1
 #define START_CMD_SIZE    6
 #define STOP_CMD_SIZE     5
@@ -53,7 +53,7 @@ int main(void)
     Error_Handler();
   }
 
-  xTaskCreate(vTask1, "Task 1", 128, NULL, osPriorityNormal, NULL);
+  xTaskCreate(vTask1, "Task 1", 128, NULL, osPriorityHigh, NULL);
 
   /* Starts the TIM Base generation in interrupt mode */
   // HAL_TIM_Base_Start_IT(&htim7);
@@ -213,28 +213,16 @@ void vTask1(void *pvParameters)
   const TickType_t xDelay100ms = pdMS_TO_TICKS(100);
   uint8_t byte;
   uint8_t index = 0;
-  BaseType_t xStatus;
 
   for(;;)
   {
-    // vPrintString("vTask1 is Running\r\n");
-    // xStatus = xQueueReceive( xQueue, &lReceivedValue, xTicksToWait ); 
-    // if(xStatus == pdPASS)
-    // {
-    //   vPrintStringAndNumber( "Received = ", lReceivedValue );
-    // }
-    // else
-    // {
-    //   vPrintString( "Could not receive from the queue.\r\n" );
-    // }
-
     if(xQueueReceive(xQueue, &byte, 0))
     {
       aRxBuffer[index] = byte;
       if (byte == LF)
       {
         printf("Should Echo Here\n");
-        HAL_UART_Transmit(&huart2, aRxBuffer, index, 100);
+        HAL_UART_Transmit(&huart2, aRxBuffer, index, 10);
         memset(aRxBuffer, 0, RX_BUFFER_SIZE);
         index = 0;
         // echo_back(aRxBuffer + index);
@@ -261,7 +249,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   } else if (htim->Instance == TIM7)
   {
-    printf("Timer Period Elapsed\r\n");
+    // printf("Timer Period Elapsed\r\n");
   }
 }
 
@@ -279,7 +267,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     {
       printf("Could not send 1 byte from ISR to queue\r\n\r\n");
     }
-     HAL_UART_Receive_IT(&huart2, &uRxByte, RX_ONE_BYTE);
+    HAL_UART_Receive_IT(&huart2, &uRxByte, RX_ONE_BYTE);
   }
 }
 
