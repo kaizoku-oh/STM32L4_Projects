@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "main.h": "c",
+        "conio.h": "c",
+        "freertos.h": "c"
+    }
+}

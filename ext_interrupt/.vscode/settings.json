@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "main.h": "c",
+        "stm32l476g_discovery.h": "c"
+    }
+}

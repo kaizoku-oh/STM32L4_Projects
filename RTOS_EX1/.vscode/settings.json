@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "cmsis_os.h": "c",
+        "main.h": "c",
+        "freertos.h": "c",
+        "portable.h": "c",
+        "portmacro.h": "c"
+    }
+}
