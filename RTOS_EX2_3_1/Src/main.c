@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -34,7 +35,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define RX_BUFFER_SIZE    32
-#define TIMER_BUFFER_SIZE RX_BUFFER_SIZE
+#define TIMER_BUFFER_SIZE 26
 #define QUEUE_SIZE        RX_BUFFER_SIZE
 #define RX_ONE_BYTE       1
 #define START_CMD_SIZE    6
@@ -64,7 +65,6 @@ uint8_t uTimerCounter = 0;
 uint8_t byte;
 volatile uint8_t index;
 uint8_t size_of_last_data = 0;
-SemaphoreHandle_t xSemaphore = NULL;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -133,8 +133,10 @@ int main(void)
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
+  /* Create the thread(s) */
+
   /* USER CODE BEGIN RTOS_THREADS */
-  xTaskCreate(vTask1, "Task 1", 128, NULL, osPriorityHigh, NULL);
+  xTaskCreate(vTask1, "Task 1", 128, NULL, osPriorityNormal, NULL);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -156,80 +158,78 @@ int main(void)
 }
 
 /**
-  * @brief System Clock Configuration
+  * @brief  System Clock Configuration
+  *         The system Clock is configured as follows :
+  *            System Clock source            = MSI
+  *            SYSCLK(Hz)                     = 4000000
+  *            HCLK(Hz)                       = 4000000
+  *            AHB Prescaler                  = 1
+  *            APB1 Prescaler                 = 1
+  *            APB2 Prescaler                 = 1
+  *            MSI Frequency(Hz)              = 4000000
+  *            Flash Latency(WS)              = 0
+  * @param  None
   * @retval None
   */
 void SystemClock_Config(void)
 {
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
 
-  /** Initializes the CPU, AHB and APB busses clocks 
-  */
+  /* The following clock configuration sets the Clock configuration sets after System reset                */
+  /* It could be avoided but it is kept to illustrate the use of HAL_RCC_OscConfig and HAL_RCC_ClockConfig */
+  /* and to be eventually adapted to new clock configuration                                               */
+
+  /* MSI is enabled after System reset at 4Mhz, PLL not used */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
-  RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-  RCC_OscInitStruct.PLL.PLLM = 1;
-  RCC_OscInitStruct.PLL.PLLN = 40;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
-  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
-  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  if(HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
-    Error_Handler();
+    /* Initialization Error */
+    while(1);
   }
-  /** Initializes the CPU, AHB and APB busses clocks 
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+
+  /* Select MSI as system clock source and configure the HCLK, PCLK1 and PCLK2 clocks dividers */
+  /* Set 0 Wait State flash latency for 4Mhz */
+  RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
+  if(HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
-    Error_Handler();
-  }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART2;
-  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure the main internal regulator output voltage 
-  */
-  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
-  {
-    Error_Handler();
+    /* Initialization Error */
+    while(1);
   }
 }
 
-/**
-  * @brief TIM7 Initialization Function
-  * @param None
-  * @retval None
-  */
+/* 
+  In terms of frequency:
+  HandleTimer.Init.Prescaler = Timer'sClockFrequency/DesiredFrequency -1;
+
+  In terms of period:
+  HandleTimer.Init.Prescaler = Timer'sClockFrequency*DesiredPeriod -1;
+
+  Frequency is in Hz.
+  Period in Seconds.
+
+  Example to get a counter period 1 sec (1HZ)
+  HandleTimer.Init.Prescaler = Timer'sClockFrequency -1;
+
+  Example to get a counter frequency 100 Hz (10 msec period)
+  HandleTimer.Init.Prescaler = Timer'sClockFrequency/100 -1; 
+*/
 static void MX_TIM7_Init(void)
 {
-
-  /* USER CODE BEGIN TIM7_Init 0 */
-
-  /* USER CODE END TIM7_Init 0 */
-
   TIM_MasterConfigTypeDef sMasterConfig = {0};
 
-  /* USER CODE BEGIN TIM7_Init 1 */
-
-  /* USER CODE END TIM7_Init 1 */
   htim7.Instance = TIM7;
-  htim7.Init.Prescaler = 0;
+  htim7.Init.Prescaler = 3999;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim7.Init.Period = 0;
+  htim7.Init.Period = 999;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
   {
@@ -241,10 +241,6 @@ static void MX_TIM7_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN TIM7_Init 2 */
-
-  /* USER CODE END TIM7_Init 2 */
-
 }
 
 /**
@@ -296,6 +292,19 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void vTask1(void *pvParameters)
+{
+  const TickType_t xDelay100ms = pdMS_TO_TICKS(100);
+
+  for(;;)
+  {
+    if (HAL_UART_Transmit_IT(&huart2, "\nvTask1 is Running\n", 19) == HAL_OK)
+    {
+      vTaskDelay(xDelay100ms); 
+    }
+  }
+}
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   // printf("Rx Callback\r\n");
@@ -311,15 +320,19 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
       if (memcmp(aRxBuffer, START_CMD, START_CMD_SIZE) == 0)
       {
         // Start timer
-        HAL_UART_Transmit_IT(&huart2, "\r\nStarting Timer\r\n", 18);
-        HAL_TIM_Base_Start_IT(&htim7);
+        if (HAL_TIM_Base_Start_IT(&htim7) == HAL_OK)
+        {
+          HAL_UART_Transmit_IT(&huart2, "\r\nStarting Timer\r\n", 18);
+        }
       }
       else if (memcmp(aRxBuffer, STOP_CMD, STOP_CMD_SIZE) == 0)
       {
         // Stop timer
-        HAL_UART_Transmit_IT(&huart2, "\r\nStopping Timer\r\n", 18);
-        HAL_TIM_Base_Stop_IT(&htim7);
-        uTimerCounter = 0;
+        if (HAL_TIM_Base_Stop_IT(&htim7) == HAL_OK)
+        {
+          HAL_UART_Transmit_IT(&huart2, "\r\nStopping Timer\r\n", 18);
+          uTimerCounter = 0;
+        }
       }
       memset(aRxBuffer, 0, RX_BUFFER_SIZE);
       index = 0;
@@ -329,6 +342,30 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
       index++;
     }
     HAL_UART_Receive_IT(&huart2, &byte, RX_ONE_BYTE);
+  }
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM6 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM6)
+  {
+    HAL_IncTick();
+  }
+  else if (htim->Instance == TIM7)
+  {
+    snprintf((char *) aTimerBuffer+23, TIMER_BUFFER_SIZE, "%d", uTimerCounter);
+    if (HAL_UART_Transmit_IT(&huart2, aTimerBuffer, TIMER_BUFFER_SIZE) == HAL_OK)
+    {
+      uTimerCounter++;
+    }
   }
 }
 
@@ -351,44 +388,7 @@ static void process_cmd(uint8_t *aRxBuffer, uint8_t current_index)
     HAL_UART_Transmit_IT(&huart2, "\r\nStopping Timer\r\n", 18);
   }
 }
-
-void vTask1(void *pvParameters)
-{
-  const TickType_t xDelay100ms = pdMS_TO_TICKS(100);
-
-  for(;;)
-  {
-    HAL_UART_Transmit_IT(&huart2, "vTask1 is Running\n", 18);
-    vTaskDelay(xDelay100ms);
-  }
-}
 /* USER CODE END 4 */
-
-/**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM6 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  /* USER CODE BEGIN Callback 0 */
-  /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM6)
-  {
-    HAL_IncTick();
-  }
-  /* USER CODE BEGIN Callback 1 */
-  else if (htim->Instance == TIM7)
-  {
-    snprintf((char *) aTimerBuffer+23, TIMER_BUFFER_SIZE, "%d", uTimerCounter);
-    HAL_UART_Transmit_IT(&huart2, aTimerBuffer, TIMER_BUFFER_SIZE);
-    uTimerCounter++;
-  }
-  /* USER CODE END Callback 1 */
-}
 
 /**
   * @brief  This function is executed in case of error occurrence.
