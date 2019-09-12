@@ -65,6 +65,7 @@ uint8_t uTimerCounter = 0;
 uint8_t byte;
 volatile uint8_t index;
 uint8_t size_of_last_data = 0;
+TaskHandle_t xHandle = NULL;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -136,7 +137,7 @@ int main(void)
   /* Create the thread(s) */
 
   /* USER CODE BEGIN RTOS_THREADS */
-  xTaskCreate(vTask1, "Task 1", 128, NULL, osPriorityNormal, NULL);
+  xTaskCreate(vTask1, "Task 1", 128, NULL, osPriorityNormal, &xHandle);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
