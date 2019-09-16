@@ -14,3 +14,6 @@ Apache Mynewt   RAM: 8-16   KB
 
 FreeRTOS		RAM: 300  Bytes
 				ROM: 5-10 KB
+
+
+RTOS Working example: RTOS_EX2_3_1_1

@@ -35,16 +35,17 @@
 /* USER CODE BEGIN PD */
 #define RX_BUFFER_SIZE    32
 #define TIMER_BUFFER_SIZE 26
-#define QUEUE_SIZE        RX_BUFFER_SIZE
+#define QUEUE_SIZE        1
 #define RX_ONE_BYTE       1
 #define START_CMD_SIZE    6
 #define STOP_CMD_SIZE     5
+#define COUNTER_MAX       255
 
 #define START_CMD         "start\n"
 #define STOP_CMD          "stop\n"
+#define CR_LF             "\r\n"
 #define LF                '\n'
 #define CR                '\r'
-#define CR_LF             "\r\n"
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -62,10 +63,10 @@ uint8_t aRxBuffer[RX_BUFFER_SIZE];
 uint8_t aTimerBuffer[TIMER_BUFFER_SIZE] = "\r\nTimer Period Elapsed \r\n";
 
 uint8_t uTimerCounter = 0;
-uint8_t byte;
+uint8_t ucByte = 0;
 
 TaskHandle_t xHandle = NULL;
-QueueHandle_t xQueue;
+QueueHandle_t xQueue = NULL;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,7 +81,6 @@ static void vTask1(void *pvParameters);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
 /* USER CODE END 0 */
 
 /**
@@ -90,10 +90,8 @@ static void vTask1(void *pvParameters);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
   
-
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
@@ -115,7 +113,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Receive_IT(&huart2, &byte, RX_ONE_BYTE);
+  HAL_UART_Receive_IT(&huart2, &ucByte, RX_ONE_BYTE);
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -155,7 +153,6 @@ int main(void)
     // printf("Running in main\r\n");
     // HAL_Delay(1000);
     /* USER CODE END WHILE */
-
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -296,127 +293,26 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void vApplicationIdleHook( void )
+{
+  // Enter sleep mode
+ __asm volatile("wfi");
+}
+
 void vTask1(void *pvParameters)
 {
-  // const TickType_t xDelay100ms = pdMS_TO_TICKS(100);
-  const TickType_t xBlockTime = pdMS_TO_TICKS(10);
-  uint32_t ulNotifiedValue;
+  // const TickType_t xDelayInMs = pdMS_TO_TICKS(100);
   uint8_t index = 0;
 
   for(;;)
   {
-    ulNotifiedValue = ulTaskNotifyTake(pdFALSE, xBlockTime);
-    if( ulNotifiedValue > 0 )
+    if(xQueueReceive(xQueue, &ucByte, 0))
     {
       /* Perform any processing necessitated by the interrupt. */
-      if(xQueueReceive(xQueue, &byte, 5))
+      aRxBuffer[index] = ucByte;
+      if (ucByte == LF)
       {
-        aRxBuffer[index] = byte;
-        if (byte == LF)
-        {
-          // printf("Should Echo Here\n");
-          HAL_UART_Transmit(&huart2, aRxBuffer, index, 100);
-          if (memcmp(aRxBuffer, START_CMD, START_CMD_SIZE) == 0)
-          {
-            // Start timer
-            if (HAL_TIM_Base_Start_IT(&htim7) == HAL_OK)
-            {
-              HAL_UART_Transmit_IT(&huart2, "\r\nStarting Timer\r\n", 18);
-            }
-          }
-          else if (memcmp(aRxBuffer, STOP_CMD, STOP_CMD_SIZE) == 0)
-          {
-            // Stop timer
-            if (HAL_TIM_Base_Stop_IT(&htim7) == HAL_OK)
-            {
-              HAL_UART_Transmit_IT(&huart2, "\r\nStopping Timer\r\n", 18);
-              uTimerCounter = 0;
-            }
-          }
-          memset(aRxBuffer, 0, RX_BUFFER_SIZE);
-          index = 0;
-        }
-        else
-        {
-          index++;
-        }
-      }
-      /*
-        aRxBuffer[index] = byte;
-        // TODO: Move this process to a FreeRTOS Task.
-        if (byte == LF)
-        {
-          // printf("Should Echo Here\n");
-          HAL_UART_Transmit(&huart2, aRxBuffer, index, 100);
-          if (memcmp(aRxBuffer, START_CMD, START_CMD_SIZE) == 0)
-          {
-            // Start timer
-            if (HAL_TIM_Base_Start_IT(&htim7) == HAL_OK)
-            {
-              HAL_UART_Transmit_IT(&huart2, "\r\nStarting Timer\r\n", 18);
-            }
-          }
-          else if (memcmp(aRxBuffer, STOP_CMD, STOP_CMD_SIZE) == 0)
-          {
-            // Stop timer
-            if (HAL_TIM_Base_Stop_IT(&htim7) == HAL_OK)
-            {
-              HAL_UART_Transmit_IT(&huart2, "\r\nStopping Timer\r\n", 18);
-              uTimerCounter = 0;
-            }
-          }
-          memset(aRxBuffer, 0, RX_BUFFER_SIZE);
-          index = 0;
-        }
-        else
-        {
-          index++;
-        }
-      */
-    }
-    else
-    {
-      /* Did not receive a notification within the expected time. */
-    }
-    /*
-      if (HAL_UART_Transmit_IT(&huart2, "\nvTask1 is Running\n", 19) == HAL_OK)
-      {
-        vTaskDelay(xDelay100ms); 
-      }
-    */
-  }
-}
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-  BaseType_t xHigherPriorityTaskWoken;
-
-  HAL_UART_Receive_IT(&huart2, &byte, RX_ONE_BYTE);
-
-  if (xQueueSendFromISR(xQueue, &byte, NULL))
-  {
-    // printf("Sending 1 byte from ISR to the Queue\r\n\r\n");
-  }
-  else
-  {
-    // printf("Could not send 1 byte from ISR to queue\r\n\r\n");
-  }
-
-  xHigherPriorityTaskWoken = pdFALSE;
-
-  vTaskNotifyGiveFromISR(xHandle, &xHigherPriorityTaskWoken);
-
-  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-  /*
-    printf("Rx Callback\r\n");
-    if (huart->Instance == USART2)
-    {
-      // TODO: Protect this buffer when writing.
-      aRxBuffer[index] = byte;
-      // TODO: Move this process to a FreeRTOS Task.
-      if (byte == LF)
-      {
-        // printf("Should Echo Here\n");
+        // Echo back recieved data
         HAL_UART_Transmit(&huart2, aRxBuffer, index, 100);
         if (memcmp(aRxBuffer, START_CMD, START_CMD_SIZE) == 0)
         {
@@ -443,7 +339,21 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         index++;
       }
     }
-  */
+    // vTaskDelay(xDelayInMs);
+  }
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (xQueueSendFromISR(xQueue, &ucByte, NULL))
+  {
+    // Sending 1 byte from ISR to Queue
+  }
+  else
+  {
+    // Could not send 1 byte from ISR to Queue
+  }
+  HAL_UART_Receive_IT(&huart2, &ucByte, RX_ONE_BYTE);
 }
 
 /**
@@ -462,6 +372,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   else if (htim->Instance == TIM7)
   {
+    // TODO: Move this process OUT of the Timer Interrupt Callback
     snprintf((char *) aTimerBuffer+23, TIMER_BUFFER_SIZE, "%d", uTimerCounter);
     if (HAL_UART_Transmit_IT(&huart2, aTimerBuffer, TIMER_BUFFER_SIZE) == HAL_OK)
     {
